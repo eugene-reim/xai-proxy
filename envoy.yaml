@@ -33,6 +33,8 @@ static_resources:
                           route:
                             cluster: xai_upstream
                             timeout: 0s
+                            # Client sends :authority = proxy IP:port — rewrite for upstream
+                            host_rewrite_literal: api.x.ai
                             max_stream_duration:
                               grpc_timeout_header_max: 0s
                 http_filters:
