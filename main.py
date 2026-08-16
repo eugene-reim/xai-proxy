@@ -1,8 +1,8 @@
 """
 Fully transparent reverse proxy to xAI API (https://api.x.ai).
 
-All incoming requests (method, path, query, headers, body) are forwarded
-as-is to the upstream. No authentication, no rewriting, no extra logic.
+Forwards method, path, query, headers and body as-is.
+No authentication, rewriting or extra logic.
 """
 
 from __future__ import annotations
@@ -18,9 +18,8 @@ from starlette.responses import StreamingResponse
 from starlette.routing import Route
 
 UPSTREAM_BASE = os.getenv("UPSTREAM_URL", "https://api.x.ai").rstrip("/")
-TIMEOUT = httpx.Timeout(None)  # no timeout – LLM streams can be long
+TIMEOUT = httpx.Timeout(None)  # no timeout for long LLM streams
 
-# Hop-by-hop headers that must not be forwarded
 HOP_BY_HOP = {
     "connection",
     "keep-alive",
@@ -36,7 +35,6 @@ HOP_BY_HOP = {
 
 @asynccontextmanager
 async def lifespan(app: Starlette):
-    # Shared client with connection pooling + HTTP/2
     app.state.client = httpx.AsyncClient(
         base_url=UPSTREAM_BASE,
         timeout=TIMEOUT,
@@ -50,19 +48,16 @@ async def lifespan(app: Starlette):
 async def proxy(request: Request) -> StreamingResponse:
     client: httpx.AsyncClient = request.app.state.client
 
-    # Preserve original path + query string exactly
     path = request.url.path
     if request.url.query:
         path = f"{path}?{request.url.query}"
 
-    # Forward headers (strip hop-by-hop)
     headers = {
         k: v
         for k, v in request.headers.items()
         if k.lower() not in HOP_BY_HOP
     }
 
-    # Stream the request body to upstream (supports large / streaming uploads)
     async def request_body() -> AsyncIterator[bytes]:
         async for chunk in request.stream():
             yield chunk
@@ -79,8 +74,6 @@ async def proxy(request: Request) -> StreamingResponse:
 
     upstream_resp = await client.send(upstream_req, stream=True)
 
-    # Response headers: strip hop-by-hop and length/encoding
-    # (uvicorn will handle framing correctly)
     resp_headers = {
         k: v
         for k, v in upstream_resp.headers.items()
@@ -105,7 +98,6 @@ async def proxy(request: Request) -> StreamingResponse:
 app = Starlette(
     lifespan=lifespan,
     routes=[
-        # Catch-all for any path (including root)
         Route("/{path:path}", endpoint=proxy, methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]),
         Route("/", endpoint=proxy, methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]),
     ],
