@@ -1,45 +1,12 @@
-# Git
 .git
-.gitignore
 .github
-
-# Python
-.venv
-__pycache__
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-dist/
-*.egg-info/
-.eggs/
-
-# IDE / editor
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# Env / secrets
+.gitignore
+*.md
+docker-compose*.yml
 .env
 .env.*
-!.env.example
-
-# Docs / misc
-*.md
-!README.md
-LICENSE
-.dockerignore
-Dockerfile*
-docker-compose*.yml
-
-# Cache / test
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-.tox/
-.cache/
+__pycache__
+.venv
+*.py
+pyproject.toml
+uv.lock

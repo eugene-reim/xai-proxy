@@ -1,0 +1,34 @@
+# Example: xai-proxy behind gluetun (VPN)
+#
+# HA / xai-sdk points to host:50051 with use_insecure_channel
+# or api_host=localhost:50051 when HA runs on the same host.
+
+services:
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      # --- fill in your VPN provider settings ---
+      # VPN_SERVICE_PROVIDER: custom
+      # VPN_TYPE: wireguard
+      # WIREGUARD_PRIVATE_KEY: ...
+      # WIREGUARD_ADDRESSES: ...
+      # WIREGUARD_ENDPOINT_IP: ...
+      # WIREGUARD_ENDPOINT_PORT: 51820
+      # WIREGUARD_PUBLIC_KEY: ...
+      TZ: Europe/Warsaw
+    ports:
+      - "50051:50051"
+    restart: unless-stopped
+
+  xai-proxy:
+    build: .
+    container_name: xai-proxy
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+    restart: unless-stopped
