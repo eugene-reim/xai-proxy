@@ -18,9 +18,11 @@ from starlette.responses import StreamingResponse
 from starlette.routing import Route
 
 UPSTREAM_BASE = os.getenv("UPSTREAM_URL", "https://api.x.ai").rstrip("/")
-TIMEOUT = httpx.Timeout(None)  # no timeout for long LLM streams
+TIMEOUT = httpx.Timeout(None)
 
-HOP_BY_HOP = {
+# Request headers that must not be forwarded
+REQUEST_SKIP = {
+    "host",
     "connection",
     "keep-alive",
     "proxy-authenticate",
@@ -29,7 +31,29 @@ HOP_BY_HOP = {
     "trailers",
     "transfer-encoding",
     "upgrade",
-    "host",
+    "content-length",  # httpx recalculates
+}
+
+# Response headers that must not be forwarded
+RESPONSE_SKIP = {
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailers",
+    "transfer-encoding",
+    "upgrade",
+    "content-encoding",  # we decompress via aiter_bytes()
+    "content-length",    # length changes after decompress / streaming
+    "server",
+    "date",
+    "set-cookie",
+    "strict-transport-security",
+    "cf-ray",
+    "cf-cache-status",
+    "cf-apo-via",
+    "alt-svc",
 }
 
 
@@ -55,7 +79,7 @@ async def proxy(request: Request) -> StreamingResponse:
     headers = {
         k: v
         for k, v in request.headers.items()
-        if k.lower() not in HOP_BY_HOP
+        if k.lower() not in REQUEST_SKIP
     }
 
     async def request_body() -> AsyncIterator[bytes]:
@@ -77,13 +101,13 @@ async def proxy(request: Request) -> StreamingResponse:
     resp_headers = {
         k: v
         for k, v in upstream_resp.headers.items()
-        if k.lower() not in HOP_BY_HOP
-        and k.lower() not in ("content-encoding", "content-length")
+        if k.lower() not in RESPONSE_SKIP
     }
 
+    # aiter_bytes() decompresses gzip/br; aiter_raw() would leave compressed body
     async def response_body() -> AsyncIterator[bytes]:
         try:
-            async for chunk in upstream_resp.aiter_raw():
+            async for chunk in upstream_resp.aiter_bytes():
                 yield chunk
         finally:
             await upstream_resp.aclose()
