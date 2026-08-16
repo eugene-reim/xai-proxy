@@ -9,9 +9,10 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_INDEX_URL=https://pypi.org/simple
 
-COPY pyproject.toml uv.lock ./
+# Only pyproject.toml — resolve fresh from official PyPI (avoids bad lockfile registries)
+COPY pyproject.toml ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --no-install-project --no-dev --frozen
+    uv sync --no-install-project --no-dev
 
 COPY main.py ./
 
